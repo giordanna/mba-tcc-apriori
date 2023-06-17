@@ -1,6 +1,11 @@
 # este passo serve para criar os arquivos parquet, caso esteja com um arquivo
 # CSV de milhoes de linhas
 
+readRenviron(".Renviron")
+
+nome_arquivo_transacoes <-
+  Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
+
 # 1 - cria o schema do banco
 # 2 - le o arquivo CSV usando o pacote arrow
 # 3 - cria o arquivo parquet com ou sem particoes
@@ -34,9 +39,30 @@ schema_transacoes <- arrow::schema(
   Perc_Desc = float32()
 )
 
+# SELECT
+# SUBSTRING(MES_ANO, 1, 2) AS Mes,
+# SUBSTRING(MES_ANO, 4, 7) AS Ano,
+# ID_Transacao_Rede,
+# Data_Transacao,
+# CONVERT(VARCHAR(100), hashbytes('MD5', Rede), 2) AS Rede,
+# CONVERT(VARCHAR(100), hashbytes('MD5', CNPJ), 2) AS CNPJ,
+# CONVERT(VARCHAR(100), hashbytes('MD5', Cpf), 2) AS Cpf,
+# Sexo,
+# Faixa_Etaria_Idade,
+# EAN,
+# Quantidade,
+# Valor_Total,
+# Valor_Bruto,
+# Valor_Desc,
+# Valor_Liq,
+# Perc_Desc
+# FROM
+# transacoes;
+
+
 # le CSV de transacoes
 csv_stream_transacoes <- open_dataset(
-  "./datasets/transacoes.csv",
+  paste("./datasets/", nome_arquivo_transacoes , ".csv", sep = ""),
   format = "csv",
   schema = schema_transacoes,
   skip_rows = 1,
@@ -46,7 +72,7 @@ csv_stream_transacoes <- open_dataset(
 # cria arquivo parquet (versao particionada)
 write_dataset(
   csv_stream_transacoes,
-  "./datasets/transacoes_parquet/",
+  paste("./datasets/", nome_arquivo_transacoes, "_parquet/", sep = ""),
   format = "parquet",
   partitioning = c("Rede"),
   max_rows_per_file = 1000000L,

@@ -2,6 +2,11 @@
 # nossa extracao, e salva em um CSV. para isso, vamos usar o Apache Spark para
 # fazer uma leitura rapida em memoria do arquivo parquet da extracao
 
+readRenviron(".Renviron")
+
+nome_arquivo_transacoes <-
+  Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
+
 # 1 - conecta com o spark
 # 2 - le o arquivo parquet das transacoes
 # 3 - le o arquivo parquet dos produtos (apenas para observar a quantidade)
@@ -22,9 +27,12 @@ sc <- spark_connect(master = "local", spark_home = "/mnt/spark")
 
 # le transacoes
 system.time(
-  transacoes_parquet <- spark_read_parquet(sc,
-                                           name = "transacoes_parquet",
-                                           path = "./datasets/transacoes_parquet")
+  transacoes_parquet <- spark_read_parquet(
+    sc,
+    name = "transacoes_parquet",
+    path = paste("./datasets/", nome_arquivo_transacoes, "_parquet", sep =
+                   "")
+  )
 )
 
 # le produtos
@@ -100,6 +108,13 @@ system.time(transacoes_loja_contagem_R <-
               collect(transacoes_agrupadas))
 
 # cria arquivo CSV com o resultado
-write.csv(transacoes_agrupadas,
-          "./resultados/transacoes_por_loja.csv",
-          row.names = TRUE)
+write.csv(
+  transacoes_agrupadas,
+  paste(
+    "./resultados/",
+    nome_arquivo_transacoes,
+    "_por_loja.csv",
+    sep = ""
+  ),
+  row.names = TRUE
+)

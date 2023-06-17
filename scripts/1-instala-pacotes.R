@@ -28,7 +28,8 @@ pacotes <- c(
   "digest",
   "RJDBC",
   "viridis",
-  "shadowtext"
+  "shadowtext",
+  "httpuv"
 )
 
 # instalar e carregar os pacotes

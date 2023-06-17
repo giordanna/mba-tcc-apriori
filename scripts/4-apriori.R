@@ -2,9 +2,13 @@
 # ajustes necessarios para utilizar o algoritmo apriori de forma mais
 # automatizada possivel
 
+readRenviron(".Renviron")
+
 # escolhe a rede e o cnpj a partir das variaveis de ambiente
 rede <- Sys.getenv("REDE")
 cnpj <- Sys.getenv("CNPJ")
+nome_arquivo_transacoes <-
+  Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
 
 #  1 - conecta com o spark
 #  2 - le o arquivo parquet das transacoes
@@ -36,12 +40,17 @@ sc <- spark_connect(master = "local", spark_home = "/mnt/spark")
 
 # lendo transacoes de arquivo parquet
 system.time(
-  transacoes_parquet <- spark_read_parquet(
-    sc,
-    name = "transacoes_parquet",
-    path =  paste("./datasets/transacoes_parquet/Rede=", rede,
-                  sep = "")
-  )
+  transacoes_parquet <- spark_read_parquet(sc,
+                                           name = "transacoes_parquet",
+                                           path =  encodeURI(
+                                             paste(
+                                               "./datasets/",
+                                               nome_arquivo_transacoes,
+                                               "_parquet/Rede=",
+                                               rede,
+                                               sep = ""
+                                             )
+                                           ))
 )
 
 # le produtos em arquivo parquet
@@ -303,7 +312,8 @@ for (i in 1:nrow(segmentos_mes)) {
       }
       
       # conta a quantidade de transacoes do segmento (faixa etaria + sexo)
-      qtd_transacoes_unicas_segmento <- n_distinct(transacoes_publico_alvo$ID_Transacao_Rede)
+      qtd_transacoes_unicas_segmento <-
+        n_distinct(transacoes_publico_alvo$ID_Transacao_Rede)
       
       ##########################################################################
       # APRIORI
@@ -334,7 +344,7 @@ for (i in 1:nrow(segmentos_mes)) {
                   minlen = 2,
                   maxlen = 2
                 ))
-
+      
       # salva resultado na lista
       todas_regras[[j]] <- list(
         Transacoes = transacoes,
