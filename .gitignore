@@ -13,3 +13,4 @@ datasets/
 resultados/
 
 .Renviron
+*.7z

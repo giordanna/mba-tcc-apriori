@@ -77,8 +77,10 @@ graphics.off()
 transacoes_parquet_filtradas <-
   transacoes_parquet %>% select(CNPJ, Ano, Mes, Sexo, Faixa_Etaria_Idade, EAN, ID_Transacao_Rede) %>% filter(CNPJ == cnpj,  Faixa_Etaria_Idade != "NÃƒO DEFINIDA")
 
+glimpse(produtos_parquet)
+
 produtos_parquet_filtrados <-
-  produtos_parquet %>% select(EAN, NEC_2) %>% filter(NEC_2 != "98A - NOT OTC")
+  produtos_parquet %>% select(EAN, NEC_1) %>% filter(NEC_1 != "98 - NOT OTC")
 
 # inner join
 transacoes_com_produtos_parquet <-
@@ -93,7 +95,7 @@ system.time(transacoes_R <-
 # transforma colunas em factor
 colunas_factor <-
   c("ID_Transacao_Rede",
-    "NEC_2")
+    "NEC_1")
 
 transacoes_R[colunas_factor] <-
   lapply(transacoes_R[colunas_factor], factor)
@@ -335,7 +337,7 @@ for (i in 1:nrow(segmentos_mes)) {
         tmp,
         format = "single",
         header = TRUE,
-        cols = c("ID_Transacao_Rede", "NEC_2")
+        cols = c("ID_Transacao_Rede", "NEC_1")
       )
       
       # fecha tabela temporaria
@@ -381,8 +383,8 @@ for (i in 1:nrow(segmentos_mes)) {
       ##########################################################################
       
       itens_mais_frequentes <-
-        transacoes_publico_alvo %>% select(NEC_2, ID_Transacao_Rede) %>%
-        group_by(NEC_2) %>%
+        transacoes_publico_alvo %>% select(NEC_1, ID_Transacao_Rede) %>%
+        group_by(NEC_1) %>%
         summarise(
           total_transacoes = n_distinct(ID_Transacao_Rede),
           porcentagem = round(
@@ -393,7 +395,7 @@ for (i in 1:nrow(segmentos_mes)) {
         slice_max(total_transacoes, n = 10)
       
       plot_itens_frequentes <- itens_mais_frequentes %>%
-        ggplot(aes(x = reorder(NEC_2, -total_transacoes), y = total_transacoes)) +
+        ggplot(aes(x = reorder(NEC_1, -total_transacoes), y = total_transacoes)) +
         geom_bar(stat = "identity", aes(fill = total_transacoes)) +
         scale_fill_viridis_c() +
         labs(
