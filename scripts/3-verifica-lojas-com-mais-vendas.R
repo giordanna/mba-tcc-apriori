@@ -107,6 +107,9 @@ sdf_nrow(transacoes_agrupadas)
 system.time(transacoes_loja_contagem_R <-
               collect(transacoes_agrupadas))
 
+# cria diretorio de resultados
+dir.create(file.path("./resultados"))
+
 # cria arquivo CSV com o resultado
 write.csv(
   transacoes_agrupadas,

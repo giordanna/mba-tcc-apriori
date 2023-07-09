@@ -2,7 +2,7 @@
 
 Projeto feito em R, implementa o algoritmo apriori em uma extração de transação de compras.
 
-O projeto cria os arquivos parquet a partir do CSV das transações de compra, separados pela coluna `Rede`. Depois, gera segmentos por mês da transação, faixa etária e sexo. Por fim, itera por estes segmentos e aplicao apriori para cada um, e salva os resultados na pasta `resultados`.
+O projeto cria os arquivos parquet a partir do CSV das transações de compra, separados pela coluna `Rede`. Depois, gera segmentos por mês da transação, faixa etária e sexo. Por fim, itera por estes segmentos, aplica o apriori para cada um e salva os resultados na pasta `resultados`.
 
 ## Pré-requisitos
 
