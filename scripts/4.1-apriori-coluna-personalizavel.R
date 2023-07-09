@@ -10,11 +10,22 @@ cnpj <- Sys.getenv("CNPJ")
 nome_arquivo_transacoes <-
   Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
 
+# escolhe a coluna que sera usada para classificar o produto das transacoes
+coluna_classificacao <-
+  Sys.getenv("COLUNA_CLASSIFICACAO", unset = "NEC_2")
+filtroProdutoOTC <-
+  Sys.getenv("FILTRO_PRODUTO_OTC", unset = "98A - NOT OTC")
+
 # define valores do apriori
-support <- 0.0001
-confidence <- 0.5
-minlen <- 2
-maxlen <- 2
+support <- Sys.getenv("APRIORI_SUPPORT", unset =  "0.0001")
+confidence <- Sys.getenv("APRIORI_CONFIDENCE", unset = "0.5")
+minlen <- Sys.getenv("APRIORI_MINLEN", unset = "2")
+maxlen <- Sys.getenv("APRIORI_MAXLEN", unset = "2")
+
+support = as.double(support)
+confidence = as.double(confidence)
+minlen = as.integer(minlen)
+maxlen = as.integer(maxlen)
 
 #  1 - conecta com o spark
 #  2 - le o arquivo parquet das transacoes
@@ -75,12 +86,17 @@ graphics.off()
 
 # seleciona apenas o que vai ser usado
 transacoes_parquet_filtradas <-
-  transacoes_parquet %>% select(CNPJ, Ano, Mes, Sexo, Faixa_Etaria_Idade, EAN, ID_Transacao_Rede) %>% filter(CNPJ == cnpj,  Faixa_Etaria_Idade != "NÃƒO DEFINIDA")
+  transacoes_parquet %>% select(CNPJ, Ano, Mes, Sexo, Faixa_Etaria_Idade, EAN,
+                                ID_Transacao_Rede) %>%
+  filter(CNPJ == cnpj,  Faixa_Etaria_Idade != "NÃƒO DEFINIDA")
 
 glimpse(produtos_parquet)
 
+# aqui como a coluna vai ser dinamico entao o filtro para filtrar produtos Rx
+# deve ser dinamico tbm
 produtos_parquet_filtrados <-
-  produtos_parquet %>% select(EAN, NEC_1) %>% filter(NEC_1 != "98 - NOT OTC")
+  produtos_parquet %>% select(EAN, !!as.name(coluna_classificacao)) %>%
+  filter(!!as.name(coluna_classificacao) != filtroProdutoOTC)
 
 # inner join
 transacoes_com_produtos_parquet <-
@@ -95,7 +111,7 @@ system.time(transacoes_R <-
 # transforma colunas em factor
 colunas_factor <-
   c("ID_Transacao_Rede",
-    "NEC_1")
+    coluna_classificacao)
 
 transacoes_R[colunas_factor] <-
   lapply(transacoes_R[colunas_factor], factor)
@@ -123,7 +139,7 @@ segmentos_mes <-
 
 # cria array de segmentos de meses para iterar
 for (i in 1:nrow(tipos_meses)) {
-  segmentos_mes[nrow(segmentos_mes) + 1, ] <-
+  segmentos_mes[nrow(segmentos_mes) + 1,] <-
     c(tipos_meses[i, 1])
 }
 
@@ -137,17 +153,25 @@ for (i in 1:nrow(segmentos_mes)) {
   transacoes_mes = transacoes_R
   
   # cria diretorio de resultados por cnpj
-  diretorio_resultados = paste("./resultados/CNPJ=", cnpj, "/",
+  diretorio_resultados = paste("./resultados/Coluna=",
+                               coluna_classificacao ,
+                               ";CNPJ=",
+                               cnpj,
+                               "/",
                                sep = "")
   
   # se mes for diferente de NA, cria diretorio de mês
   if (!is.na(segmentos_mes[i, 1])) {
-    diretorio_resultados = paste("./resultados/Mes=",
-                                 segmentos_mes[i, 1],
-                                 ";CNPJ=",
-                                 cnpj,
-                                 "/",
-                                 sep = "")
+    diretorio_resultados = paste(
+      "./resultados/Coluna=",
+      coluna_classificacao ,
+      ";Mes=",
+      segmentos_mes[i, 1],
+      ";CNPJ=",
+      cnpj,
+      "/",
+      sep = ""
+    )
     
     # adiciona filtro de mes
     transacoes_mes <-
@@ -210,7 +234,7 @@ for (i in 1:nrow(segmentos_mes)) {
         total_transacoes, " (", porcentagem, "%)", sep = ""
       )),
       size = 8,
-      hjust = if_else(tipos_faixa_etaria$porcentagem <= 5,-0.1, 1.1)
+      hjust = if_else(tipos_faixa_etaria$porcentagem <= 5, -0.1, 1.1)
     ) +
     coord_flip() +
     theme(
@@ -249,7 +273,7 @@ for (i in 1:nrow(segmentos_mes)) {
         total_transacoes, " (", porcentagem, "%)", sep = ""
       )),
       size = 12,
-      hjust = if_else(tipos_sexo$porcentagem <= 5,-0.1, 1.1)
+      hjust = if_else(tipos_sexo$porcentagem <= 5, -0.1, 1.1)
     ) +
     coord_flip() +
     theme(
@@ -276,16 +300,16 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # itera pelas faixas etarias
   for (j in 1:nrow(tipos_faixa_etaria)) {
-    publicos_alvo[nrow(publicos_alvo) + 1, ] <-
+    publicos_alvo[nrow(publicos_alvo) + 1,] <-
       c(NA, tipos_faixa_etaria[j, 1])
   }
   
   # itera pelos sexos
   for (j in 1:nrow(tipos_sexo)) {
-    publicos_alvo[nrow(publicos_alvo) + 1, ] <- c(tipos_sexo[j, 1], NA)
+    publicos_alvo[nrow(publicos_alvo) + 1,] <- c(tipos_sexo[j, 1], NA)
     
     for (k in 1:nrow(tipos_faixa_etaria)) {
-      publicos_alvo[nrow(publicos_alvo) + 1, ] <-
+      publicos_alvo[nrow(publicos_alvo) + 1,] <-
         c(tipos_sexo[j, 1], tipos_faixa_etaria[k, 1])
     }
   }
@@ -337,7 +361,7 @@ for (i in 1:nrow(segmentos_mes)) {
         tmp,
         format = "single",
         header = TRUE,
-        cols = c("ID_Transacao_Rede", "NEC_1")
+        cols = c("ID_Transacao_Rede", coluna_classificacao)
       )
       
       # fecha tabela temporaria
@@ -345,13 +369,15 @@ for (i in 1:nrow(segmentos_mes)) {
       
       # roda o apriori
       rules <-
-        apriori(transacoes,
-                parameter = list(
-                  support = support,
-                  confidence = confidence,
-                  minlen = minlen,
-                  maxlen = maxlen
-                ))
+        apriori(
+          transacoes,
+          parameter = list(
+            support = support,
+            confidence = confidence,
+            minlen = minlen,
+            maxlen = maxlen
+          )
+        )
       
       # salva resultado na lista
       todas_regras[[j]] <- list(
@@ -383,8 +409,11 @@ for (i in 1:nrow(segmentos_mes)) {
       ##########################################################################
       
       itens_mais_frequentes <-
-        transacoes_publico_alvo %>% select(NEC_1, ID_Transacao_Rede) %>%
-        group_by(NEC_1) %>%
+        transacoes_publico_alvo %>% select(!!as.name(
+          coluna_classificacao),
+          ID_Transacao_Rede
+        ) %>%
+        group_by(!!as.name(coluna_classificacao)) %>%
         summarise(
           total_transacoes = n_distinct(ID_Transacao_Rede),
           porcentagem = round(
@@ -395,7 +424,9 @@ for (i in 1:nrow(segmentos_mes)) {
         slice_max(total_transacoes, n = 10)
       
       plot_itens_frequentes <- itens_mais_frequentes %>%
-        ggplot(aes(x = reorder(NEC_1, -total_transacoes), y = total_transacoes)) +
+        ggplot(aes(x = reorder(
+          !!as.name(coluna_classificacao),-total_transacoes
+        ), y = total_transacoes)) +
         geom_bar(stat = "identity", aes(fill = total_transacoes)) +
         scale_fill_viridis_c() +
         labs(
@@ -413,7 +444,7 @@ for (i in 1:nrow(segmentos_mes)) {
             total_transacoes, " (", porcentagem, "%)", sep = ""
           )),
           size = 8,
-          hjust =   if_else(itens_mais_frequentes$porcentagem <= 5,-0.1, 1.1)
+          hjust =   if_else(itens_mais_frequentes$porcentagem <= 5, -0.1, 1.1)
         ) +
         coord_flip() +
         theme(

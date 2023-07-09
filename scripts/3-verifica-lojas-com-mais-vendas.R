@@ -60,7 +60,7 @@ glimpse(transacoes_parquet)
 
 # ve se ha valores nulos
 transacoes_parquet %>%
-  summarise_all(~ sum(as.integer(is.na(.))))
+  summarise_all( ~ sum(as.integer(is.na(.))))
 
 # conta a quantidade de valores faltantes no dataframe
 sapply(transacoes_parquet, function(x)
@@ -121,3 +121,43 @@ write.csv(
   ),
   row.names = TRUE
 )
+
+# vamos extrair tbm os possiveis valores distintos da tabela
+# produtos, para saber o que usar para classificar os produtos
+# de maneira mais generica
+lista_coluna_produtos = c("Setor_NEC_Aberto",
+                          "Molecula",
+                          "Classe_4",
+                          "Classe_3",
+                          "Classe_2",
+                          "Classe_1",
+                          "NEC_4",
+                          "NEC_3",
+                          "NEC_2",
+                          "NEC_1")
+
+for (i in lista_coluna_produtos) {
+  classificacao_coluna <- i
+  
+
+  # pega ocorrencias distintas e ordena em ordem alfabetica
+  classificacoes_distintas_produtos <- produtos_parquet %>%
+    select(all_of(c(classificacao_coluna))) %>% distinct %>% arrange()
+  
+  # transfere para um dataframe no R
+  system.time(produtos_distintos_R <-
+                collect(classificacoes_distintas_produtos))
+  
+  # cria arquivo CSV com o resultado
+  write.csv(
+    produtos_distintos_R,
+    paste(
+      "./resultados/",
+      "classificacoes_coluna=",
+      classificacao_coluna ,
+      ".csv",
+      sep = ""
+    ),
+    row.names = TRUE
+  )
+}
