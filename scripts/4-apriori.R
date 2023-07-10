@@ -121,11 +121,7 @@ system.time(transacoes_R <-
 # transforma colunas em factor
 colunas_factor <-
   c("id_transacao",
-    coluna_classificacao,
-    "Faixa_Etaria_Idade",
-    "Sexo",
-    "EAN",
-    "Mes")
+    coluna_classificacao)
 
 transacoes_R[colunas_factor] <-
   lapply(transacoes_R[colunas_factor], factor)
@@ -322,6 +318,7 @@ for (i in 1:nrow(segmentos_mes)) {
   tipos_faixa_etaria <- as.data.frame(tipos_faixa_etaria)
   tipos_sexo <- as.data.frame(tipos_sexo)
   
+  tipos_faixa_etaria[4, 1]
   
   # itera pelas faixas etarias
   for (j in 1:nrow(tipos_faixa_etaria)) {
