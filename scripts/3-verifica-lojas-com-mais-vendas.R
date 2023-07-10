@@ -48,41 +48,54 @@ system.time(
 
 # conta quantidade de linhas de produtos
 sdf_nrow(produtos_parquet)
+# [1] 345404
 
 # verifica nossos produtos
 glimpse(produtos_parquet)
 
 # conta quantidade de linhas de transacoes (OBS: nao sao transacoes unicas)
 sdf_nrow(transacoes_parquet)
+# [1] 49272047
 
 # verifica nossas transacoes
 glimpse(transacoes_parquet)
 
 # ve se ha valores nulos
 transacoes_parquet %>%
-  summarise_all( ~ sum(as.integer(is.na(.))))
+  summarise_all(~ sum(as.integer(is.na(.))))
 
 # conta a quantidade de valores faltantes no dataframe
 sapply(transacoes_parquet, function(x)
   sum(is.na(x)))
 
-# quantas transacoes existem
-transacoes_parquet %>% summarize(redes_distintas = n_distinct(ID_Transacao_Rede))
+# cria coluna nova: ID_Transacao_Rede + Cpf = id_transacao
+transacoes_parquet <-
+  transacoes_parquet %>% mutate(id_transacao = paste(ID_Transacao_Rede,
+                                                     "_",
+                                                     Cpf,
+                                                     sep = ""))
 
-# quantas bandeiras de rede existem
-transacoes_parquet %>% summarize(redes_distintas = n_distinct(Rede))
+# quantas transacoes, redes, lojas, eans, e cpfs existem
+transacoes_parquet %>% summarize(
+  transacoes_distintas = n_distinct(id_transacao),
+  redes_distintas = n_distinct(Rede),
+  lojas_distintas = n_distinct(CNPJ),
+  produtos_distintos = n_distinct(EAN),
+  clientes_distintos = n_distinct(Cpf)
+)
 
-# quantas farmacias existem
-transacoes_parquet %>% summarize(lojas_distintas = n_distinct(CNPJ))
-
-# quantos produtos existem (no banco de dados de transacoes)
-transacoes_parquet %>% summarize(produtos_distintos = n_distinct(EAN))
-
-# quantos clientes existem
-transacoes_parquet %>% summarize(clientes_distintos = n_distinct(Cpf))
+# Source: spark<?> [?? x 5]
+# transacoes_distintas redes_distintas lojas_distintas produtos_distintos clientes_distintos
+# <int>           <int>           <int>              <int>              <int>
+#   1             20939183              79            5554             223617            7511207
 
 # quantos produtos existem (no banco de dados de produtos)
 produtos_parquet %>% summarize(produtos_distintos = n_distinct(EAN))
+
+# Source: spark<?> [?? x 1]
+# produtos_distintos
+# <int>
+#   1             345404
 
 ################################################################################
 # FAZ AGRUPAMENTO DE LOJAS COM MAIS VENDAS
@@ -91,9 +104,9 @@ produtos_parquet %>% summarize(produtos_distintos = n_distinct(EAN))
 # agrupa cnpjs, conta a quantidade unica de transações, e ve as transacoes
 # de farmacias com mais de 20000 transacoes
 transacoes_agrupadas <-
-  transacoes_parquet %>% select(Rede, ID_Transacao_Rede, CNPJ) %>%
+  transacoes_parquet %>% select(Rede, CNPJ, id_transacao) %>%
   group_by(CNPJ, Rede) %>%
-  summarise(total_transacoes = n_distinct(ID_Transacao_Rede)) %>%
+  summarise(total_transacoes = n_distinct(id_transacao)) %>%
   filter(total_transacoes >= 20000) %>%
   arrange(desc(total_transacoes))
 
@@ -102,17 +115,20 @@ glimpse(transacoes_agrupadas)
 
 # conta a quantidade de linhas do agrupamento
 sdf_nrow(transacoes_agrupadas)
+# [1] 156
 
 # transfere para um dataframe no R
 system.time(transacoes_loja_contagem_R <-
               collect(transacoes_agrupadas))
+# usuário   sistema decorrido 
+# 0.998     0.127    50.651
 
 # cria diretorio de resultados
 dir.create(file.path("./resultados"))
 
 # cria arquivo CSV com o resultado
 write.csv(
-  transacoes_agrupadas,
+  transacoes_loja_contagem_R,
   paste(
     "./resultados/",
     nome_arquivo_transacoes,
@@ -125,21 +141,22 @@ write.csv(
 # vamos extrair tbm os possiveis valores distintos da tabela
 # produtos, para saber o que usar para classificar os produtos
 # de maneira mais generica
-lista_coluna_produtos = c("Setor_NEC_Aberto",
-                          "Molecula",
-                          "Classe_4",
-                          "Classe_3",
-                          "Classe_2",
-                          "Classe_1",
-                          "NEC_4",
-                          "NEC_3",
-                          "NEC_2",
-                          "NEC_1")
+lista_coluna_produtos = c(
+  "Setor_NEC_Aberto",
+  "Molecula",
+  "Classe_4",
+  "Classe_3",
+  "Classe_2",
+  "Classe_1",
+  "NEC_4",
+  "NEC_3",
+  "NEC_2",
+  "NEC_1"
+)
 
 for (i in lista_coluna_produtos) {
   classificacao_coluna <- i
   
-
   # pega ocorrencias distintas e ordena em ordem alfabetica
   classificacoes_distintas_produtos <- produtos_parquet %>%
     select(all_of(c(classificacao_coluna))) %>% distinct %>% arrange()

@@ -10,11 +10,26 @@ cnpj <- Sys.getenv("CNPJ")
 nome_arquivo_transacoes <-
   Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
 
+# escolhe a coluna que sera usada para classificar o produto das transacoes
+coluna_classificacao <-
+  Sys.getenv("COLUNA_CLASSIFICACAO", unset = "NEC_2")
+filtroProdutoOTC <-
+  Sys.getenv("FILTRO_PRODUTO_OTC", unset = "98A - NOT OTC")
+
 # define valores do apriori
-support <- 0.0001
-confidence <- 0.5
-minlen <- 2
-maxlen <- 2
+support <- Sys.getenv("APRIORI_SUPPORT", unset =  "0.001")
+confidence <- Sys.getenv("APRIORI_CONFIDENCE", unset = "0.4")
+minlen <- Sys.getenv("APRIORI_MINLEN", unset = "2")
+maxlen <- Sys.getenv("APRIORI_MAXLEN", unset = "2")
+
+support = as.double(support)
+confidence = as.double(confidence)
+minlen = as.integer(minlen)
+maxlen = as.integer(maxlen)
+
+# define quando deve mudar a posicao da porcentagem no grafico de barras,
+# pro questoes esteticas
+limite_posicao_porcentagem <- 6.5
 
 #  1 - conecta com o spark
 #  2 - le o arquivo parquet das transacoes
@@ -74,11 +89,24 @@ system.time(
 graphics.off()
 
 # seleciona apenas o que vai ser usado
+# combina duas colunas: ID_Transacao_Rede e Cpf, para gerar um ID unico que
+# identifica a transacao por cliente em uma nova coluna: id_transacao
 transacoes_parquet_filtradas <-
-  transacoes_parquet %>% select(CNPJ, Ano, Mes, Sexo, Faixa_Etaria_Idade, EAN, ID_Transacao_Rede) %>% filter(CNPJ == cnpj,  Faixa_Etaria_Idade != "NÃƒO DEFINIDA")
+  transacoes_parquet %>% mutate(id_transacao = paste(ID_Transacao_Rede,
+                                                     "_",
+                                                     Cpf,
+                                                     sep = "")) %>%
+  filter(CNPJ == cnpj,  Faixa_Etaria_Idade != "NÃƒO DEFINIDA") %>%
+  select(Ano, Mes, Sexo, Faixa_Etaria_Idade, EAN, id_transacao)
 
+
+glimpse(produtos_parquet)
+
+# aqui como a coluna vai ser dinamico entao o filtro para filtrar produtos Rx
+# deve ser dinamico tbm
 produtos_parquet_filtrados <-
-  produtos_parquet %>% select(EAN, NEC_2) %>% filter(NEC_2 != "98A - NOT OTC")
+  produtos_parquet %>% select(EAN,!!as.name(coluna_classificacao)) %>%
+  filter(!!as.name(coluna_classificacao) != filtroProdutoOTC)
 
 # inner join
 transacoes_com_produtos_parquet <-
@@ -92,8 +120,12 @@ system.time(transacoes_R <-
 
 # transforma colunas em factor
 colunas_factor <-
-  c("ID_Transacao_Rede",
-    "NEC_2")
+  c("id_transacao",
+    coluna_classificacao,
+    "Faixa_Etaria_Idade",
+    "Sexo",
+    "EAN",
+    "Mes")
 
 transacoes_R[colunas_factor] <-
   lapply(transacoes_R[colunas_factor], factor)
@@ -103,17 +135,21 @@ transacoes_R[colunas_factor] <-
 ################################################################################
 
 # conta a quantidade de transacoes distintas
-qtd_transacoes_unicas <- n_distinct(transacoes_R$ID_Transacao_Rede)
+qtd_transacoes_unicas <- n_distinct(transacoes_R$id_transacao)
 
 # ve os meses da extracao
 tipos_meses <-
-  transacoes_R %>% select(Mes, ID_Transacao_Rede) %>%
+  transacoes_R %>% select(Mes, id_transacao) %>%
   group_by(Mes) %>%
   summarise(
-    total_transacoes = n_distinct(ID_Transacao_Rede),
-    porcentagem = round(100 * n_distinct(ID_Transacao_Rede) / qtd_transacoes_unicas, 0)
+    total_transacoes = n_distinct(id_transacao),
+    porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas,
+    porcentagem = percent(n_distinct(id_transacao) / qtd_transacoes_unicas)
   ) %>%
   arrange(Mes)
+
+# garante que eh do tipo dataframe (poderia estar como tibble)
+tipos_meses <- as.data.frame(tipos_meses)
 
 # cria dataframe de segmentos de meses
 segmentos_mes <-
@@ -135,17 +171,25 @@ for (i in 1:nrow(segmentos_mes)) {
   transacoes_mes = transacoes_R
   
   # cria diretorio de resultados por cnpj
-  diretorio_resultados = paste("./resultados/CNPJ=", cnpj, "/",
+  diretorio_resultados = paste("./resultados/Coluna=",
+                               coluna_classificacao ,
+                               ";CNPJ=",
+                               cnpj,
+                               "/",
                                sep = "")
   
   # se mes for diferente de NA, cria diretorio de mês
   if (!is.na(segmentos_mes[i, 1])) {
-    diretorio_resultados = paste("./resultados/Mes=",
-                                 segmentos_mes[i, 1],
-                                 ";CNPJ=",
-                                 cnpj,
-                                 "/",
-                                 sep = "")
+    diretorio_resultados = paste(
+      "./resultados/Coluna=",
+      coluna_classificacao ,
+      ";Mes=",
+      segmentos_mes[i, 1],
+      ";CNPJ=",
+      cnpj,
+      "/",
+      sep = ""
+    )
     
     # adiciona filtro de mes
     transacoes_mes <-
@@ -154,7 +198,7 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # conta quantidade de transacoes unicas pra cada mes
   qtd_transacoes_unicas_mes <-
-    n_distinct(transacoes_mes$ID_Transacao_Rede)
+    n_distinct(transacoes_mes$id_transacao)
   
   # cria diretorios de frequencias e CSVs dentro da pasta de resultados
   dir.create(file.path(diretorio_resultados))
@@ -163,27 +207,23 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # ve faixa etaria e a frequencia
   tipos_faixa_etaria <-
-    transacoes_mes %>% select(Faixa_Etaria_Idade, ID_Transacao_Rede) %>%
+    transacoes_mes %>%
     group_by(Faixa_Etaria_Idade) %>%
     summarise(
-      total_transacoes = n_distinct(ID_Transacao_Rede),
-      porcentagem = round(
-        100 * n_distinct(ID_Transacao_Rede) / qtd_transacoes_unicas_mes,
-        0
-      )
+      total_transacoes = n_distinct(id_transacao),
+      porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas,
+      porcentagem = percent(n_distinct(id_transacao) / qtd_transacoes_unicas_mes)
     ) %>%
     arrange(desc(total_transacoes))
   
   # ve sexo e frequencia
   tipos_sexo <-
-    transacoes_mes %>% select(Sexo, ID_Transacao_Rede) %>%
+    transacoes_mes %>% select(Sexo, id_transacao) %>%
     group_by(Sexo) %>%
     summarise(
-      total_transacoes = n_distinct(ID_Transacao_Rede),
-      porcentagem = round(
-        100 * n_distinct(ID_Transacao_Rede) / qtd_transacoes_unicas_mes,
-        0
-      )
+      total_transacoes = n_distinct(id_transacao),
+      porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas,
+      porcentagem =  percent(n_distinct(id_transacao) / qtd_transacoes_unicas_mes)
     ) %>%
     arrange(desc(total_transacoes))
   
@@ -205,10 +245,13 @@ for (i in 1:nrow(segmentos_mes)) {
     ) +
     geom_shadowtext(
       aes(label = paste(
-        total_transacoes, " (", porcentagem, "%)", sep = ""
+        total_transacoes, " (", porcentagem, ")", sep = ""
       )),
       size = 8,
-      hjust = if_else(tipos_faixa_etaria$porcentagem <= 5,-0.1, 1.1)
+      hjust = if_else(
+        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+        1.1
+      )
     ) +
     coord_flip() +
     theme(
@@ -244,10 +287,13 @@ for (i in 1:nrow(segmentos_mes)) {
     ) +
     geom_shadowtext(
       aes(label = paste(
-        total_transacoes, " (", porcentagem, "%)", sep = ""
+        total_transacoes, " (", porcentagem, ")", sep = ""
       )),
       size = 12,
-      hjust = if_else(tipos_sexo$porcentagem <= 5,-0.1, 1.1)
+      hjust = if_else(
+        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+        1.1
+      )
     ) +
     coord_flip() +
     theme(
@@ -271,6 +317,11 @@ for (i in 1:nrow(segmentos_mes)) {
   
   publicos_alvo <-
     data.frame(Sexo = NA, Faixa_Etaria_Idade = NA)
+  
+  # converte de novo pra dataframe (tava como tibble)
+  tipos_faixa_etaria <- as.data.frame(tipos_faixa_etaria)
+  tipos_sexo <- as.data.frame(tipos_sexo)
+  
   
   # itera pelas faixas etarias
   for (j in 1:nrow(tipos_faixa_etaria)) {
@@ -319,7 +370,7 @@ for (i in 1:nrow(segmentos_mes)) {
       
       # conta a quantidade de transacoes do segmento (faixa etaria + sexo)
       qtd_transacoes_unicas_segmento <-
-        n_distinct(transacoes_publico_alvo$ID_Transacao_Rede)
+        n_distinct(transacoes_publico_alvo$id_transacao)
       
       ##########################################################################
       # APRIORI
@@ -335,7 +386,7 @@ for (i in 1:nrow(segmentos_mes)) {
         tmp,
         format = "single",
         header = TRUE,
-        cols = c("ID_Transacao_Rede", "NEC_2")
+        cols = c("id_transacao", coluna_classificacao)
       )
       
       # fecha tabela temporaria
@@ -343,13 +394,18 @@ for (i in 1:nrow(segmentos_mes)) {
       
       # roda o apriori
       rules <-
-        apriori(transacoes,
-                parameter = list(
-                  support = support,
-                  confidence = confidence,
-                  minlen = minlen,
-                  maxlen = maxlen
-                ))
+        apriori(
+          transacoes,
+          parameter = list(
+            support = support,
+            confidence = confidence,
+            minlen = minlen,
+            maxlen = maxlen
+          )
+        )
+      
+      # ordena pelo lift
+      rules <- sort(rules, decreasing = TRUE, na.last = NA, by = "lift")
       
       # salva resultado na lista
       todas_regras[[j]] <- list(
@@ -381,19 +437,23 @@ for (i in 1:nrow(segmentos_mes)) {
       ##########################################################################
       
       itens_mais_frequentes <-
-        transacoes_publico_alvo %>% select(NEC_2, ID_Transacao_Rede) %>%
-        group_by(NEC_2) %>%
+        transacoes_publico_alvo %>% select(!!as.name(coluna_classificacao),
+                                           id_transacao) %>%
+        group_by(!!as.name(coluna_classificacao)) %>%
         summarise(
-          total_transacoes = n_distinct(ID_Transacao_Rede),
-          porcentagem = round(
-            100 * n_distinct(ID_Transacao_Rede) / qtd_transacoes_unicas_segmento,
-            0
+          total_transacoes = n_distinct(id_transacao),
+          porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas_segmento,
+          porcentagem =  percent(
+            n_distinct(id_transacao) / qtd_transacoes_unicas_segmento
           )
         ) %>%
         slice_max(total_transacoes, n = 10)
       
       plot_itens_frequentes <- itens_mais_frequentes %>%
-        ggplot(aes(x = reorder(NEC_2, -total_transacoes), y = total_transacoes)) +
+        ggplot(aes(
+          x = reorder(!!as.name(coluna_classificacao),-total_transacoes),
+          y = total_transacoes
+        )) +
         geom_bar(stat = "identity", aes(fill = total_transacoes)) +
         scale_fill_viridis_c() +
         labs(
@@ -408,10 +468,13 @@ for (i in 1:nrow(segmentos_mes)) {
         ) +
         geom_shadowtext(
           aes(label = paste(
-            total_transacoes, " (", porcentagem, "%)", sep = ""
+            total_transacoes, " (", porcentagem, ")", sep = ""
           )),
           size = 8,
-          hjust =   if_else(itens_mais_frequentes$porcentagem <= 5,-0.1, 1.1)
+          hjust = if_else(
+            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+            1.1
+          )
         ) +
         coord_flip() +
         theme(

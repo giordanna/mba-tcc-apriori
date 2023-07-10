@@ -29,7 +29,8 @@ pacotes <- c(
   "RJDBC",
   "viridis",
   "shadowtext",
-  "httpuv"
+  "httpuv",
+  "formattable"
 )
 
 # instalar e carregar os pacotes
