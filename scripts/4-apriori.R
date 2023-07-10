@@ -105,7 +105,7 @@ glimpse(produtos_parquet)
 # aqui como a coluna vai ser dinamico entao o filtro para filtrar produtos Rx
 # deve ser dinamico tbm
 produtos_parquet_filtrados <-
-  produtos_parquet %>% select(EAN,!!as.name(coluna_classificacao)) %>%
+  produtos_parquet %>% select(EAN, !!as.name(coluna_classificacao)) %>%
   filter(!!as.name(coluna_classificacao) != filtroProdutoOTC)
 
 # inner join
@@ -153,7 +153,7 @@ segmentos_mes <-
 
 # cria array de segmentos de meses para iterar
 for (i in 1:nrow(tipos_meses)) {
-  segmentos_mes[nrow(segmentos_mes) + 1, ] <-
+  segmentos_mes[nrow(segmentos_mes) + 1,] <-
     c(tipos_meses[i, 1])
 }
 
@@ -245,7 +245,8 @@ for (i in 1:nrow(segmentos_mes)) {
       )),
       size = 8,
       hjust = if_else(
-        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,
+        -0.1,
         1.1
       )
     ) +
@@ -287,7 +288,8 @@ for (i in 1:nrow(segmentos_mes)) {
       )),
       size = 12,
       hjust = if_else(
-        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,
+        -0.1,
         1.1
       )
     ) +
@@ -322,16 +324,16 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # itera pelas faixas etarias
   for (j in 1:nrow(tipos_faixa_etaria)) {
-    publicos_alvo[nrow(publicos_alvo) + 1, ] <-
+    publicos_alvo[nrow(publicos_alvo) + 1,] <-
       c(NA, tipos_faixa_etaria[j, 1])
   }
   
   # itera pelos sexos
   for (j in 1:nrow(tipos_sexo)) {
-    publicos_alvo[nrow(publicos_alvo) + 1, ] <- c(tipos_sexo[j, 1], NA)
+    publicos_alvo[nrow(publicos_alvo) + 1,] <- c(tipos_sexo[j, 1], NA)
     
     for (k in 1:nrow(tipos_faixa_etaria)) {
-      publicos_alvo[nrow(publicos_alvo) + 1, ] <-
+      publicos_alvo[nrow(publicos_alvo) + 1,] <-
         c(tipos_sexo[j, 1], tipos_faixa_etaria[k, 1])
     }
   }
@@ -402,7 +404,11 @@ for (i in 1:nrow(segmentos_mes)) {
         )
       
       # ordena pelo lift
-      rules <- sort(rules, decreasing = TRUE, na.last = NA, by = "lift")
+      rules <-
+        sort(rules,
+             decreasing = TRUE,
+             na.last = NA,
+             by = "lift")
       
       # salva resultado na lista
       todas_regras[[j]] <- list(
@@ -448,7 +454,7 @@ for (i in 1:nrow(segmentos_mes)) {
       
       plot_itens_frequentes <- itens_mais_frequentes %>%
         ggplot(aes(
-          x = reorder(!!as.name(coluna_classificacao),-total_transacoes),
+          x = reorder(!!as.name(coluna_classificacao), -total_transacoes),
           y = total_transacoes
         )) +
         geom_bar(stat = "identity", aes(fill = total_transacoes)) +
@@ -469,7 +475,8 @@ for (i in 1:nrow(segmentos_mes)) {
           )),
           size = 8,
           hjust = if_else(
-            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,
+            -0.1,
             1.1
           )
         ) +
@@ -507,4 +514,49 @@ for (i in 1:nrow(segmentos_mes)) {
       
     })
   }
+  
+  # percorre todas as regras e gera um data frame contendo todas as regras
+  todas_regras_dataframe <- data.frame(
+    sexo = character(0),
+    faixa_etaria = character(0),
+    lhs = character(0),
+    rhs = character(0),
+    support = numeric(0),
+    confidence = numeric(0),
+    coverage = numeric(0),
+    lift = numeric(0),
+    count = numeric(0)
+  )
+  
+  # junta todas as regras
+  for (regra in todas_regras) {
+    todas_regras_dataframe <- todas_regras_dataframe %>%
+      bind_rows(
+        data.frame(
+          sexo = regra$Sexo,
+          faixa_etaria =  regra$Faixa_Etaria_Idade,
+          lhs = labels(lhs(regra$Regras)),
+          rhs = labels(rhs(regra$Regras)),
+          regra$Regras@quality
+        )
+      )
+  }
+  
+  # filtra apenas as que tiveram lift maior que dois e ordena
+  todas_regras_dataframe <-
+    todas_regras_dataframe %>% filter(lift >= 2) %>%
+    arrange(desc(lift))
+  
+  # salva regras em um CSV
+  write.csv(
+    todas_regras_dataframe,
+    paste(
+      diretorio_resultados,
+      "csvs/Todas_Regras_Consideraveis.csv",
+      sep = ""
+    ),
+    sep = ";",
+    quote = TRUE,
+    row.names = TRUE
+  )
 }
