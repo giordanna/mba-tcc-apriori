@@ -12,21 +12,12 @@ instalar_carregar_pacotes <- function(pkg) {
   sapply(pkg, require, character.only = TRUE)
 }
 
-# precisei consultar as seguintes perguntas no stackoverflow:
-# https://stackoverflow.com/questions/18023300/is-rgraphviz-no-longer-available-for-r
-# https://stackoverflow.com/questions/25114771/glpk-no-such-file-or-directory-error-when-trying-to-install-r-package
-
 # lista de pacotes necessarios
 pacotes <- c(
   "arrow",
-  "grid",
   "tidyverse",
   "sparklyr",
   "arules",
-  #"BiocManager",
-  "arulesViz",
-  "digest",
-  "RJDBC",
   "viridis",
   "shadowtext",
   "httpuv",
@@ -35,7 +26,3 @@ pacotes <- c(
 
 # instalar e carregar os pacotes
 instalar_carregar_pacotes(pacotes)
-
-# precisei usar esse uma vez para instalar pacotes com dependencia do arulesViz
-#BiocManager::install("Rgraphviz")
-#BiocManager::install("graph")

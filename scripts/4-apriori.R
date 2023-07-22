@@ -105,7 +105,7 @@ glimpse(produtos_parquet)
 # aqui como a coluna vai ser dinamico entao o filtro para filtrar produtos Rx
 # deve ser dinamico tbm
 produtos_parquet_filtrados <-
-  produtos_parquet %>% select(EAN, !!as.name(coluna_classificacao)) %>%
+  produtos_parquet %>% select(EAN,!!as.name(coluna_classificacao)) %>%
   filter(!!as.name(coluna_classificacao) != filtroProdutoOTC)
 
 # inner join
@@ -153,7 +153,7 @@ segmentos_mes <-
 
 # cria array de segmentos de meses para iterar
 for (i in 1:nrow(tipos_meses)) {
-  segmentos_mes[nrow(segmentos_mes) + 1,] <-
+  segmentos_mes[nrow(segmentos_mes) + 1, ] <-
     c(tipos_meses[i, 1])
 }
 
@@ -245,8 +245,7 @@ for (i in 1:nrow(segmentos_mes)) {
       )),
       size = 8,
       hjust = if_else(
-        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,
-        -0.1,
+        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,-0.1,
         1.1
       )
     ) +
@@ -288,8 +287,7 @@ for (i in 1:nrow(segmentos_mes)) {
       )),
       size = 12,
       hjust = if_else(
-        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,
-        -0.1,
+        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,-0.1,
         1.1
       )
     ) +
@@ -324,16 +322,16 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # itera pelas faixas etarias
   for (j in 1:nrow(tipos_faixa_etaria)) {
-    publicos_alvo[nrow(publicos_alvo) + 1,] <-
+    publicos_alvo[nrow(publicos_alvo) + 1, ] <-
       c(NA, tipos_faixa_etaria[j, 1])
   }
   
   # itera pelos sexos
   for (j in 1:nrow(tipos_sexo)) {
-    publicos_alvo[nrow(publicos_alvo) + 1,] <- c(tipos_sexo[j, 1], NA)
+    publicos_alvo[nrow(publicos_alvo) + 1, ] <- c(tipos_sexo[j, 1], NA)
     
     for (k in 1:nrow(tipos_faixa_etaria)) {
-      publicos_alvo[nrow(publicos_alvo) + 1,] <-
+      publicos_alvo[nrow(publicos_alvo) + 1, ] <-
         c(tipos_sexo[j, 1], tipos_faixa_etaria[k, 1])
     }
   }
@@ -454,7 +452,7 @@ for (i in 1:nrow(segmentos_mes)) {
       
       plot_itens_frequentes <- itens_mais_frequentes %>%
         ggplot(aes(
-          x = reorder(!!as.name(coluna_classificacao), -total_transacoes),
+          x = reorder(!!as.name(coluna_classificacao),-total_transacoes),
           y = total_transacoes
         )) +
         geom_bar(stat = "identity", aes(fill = total_transacoes)) +
@@ -475,8 +473,7 @@ for (i in 1:nrow(segmentos_mes)) {
           )),
           size = 8,
           hjust = if_else(
-            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,
-            -0.1,
+            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,-0.1,
             1.1
           )
         ) +
@@ -542,9 +539,15 @@ for (i in 1:nrow(segmentos_mes)) {
       )
   }
   
+  # ve quantidade minima de contagem para filtrar regras que
+  # podem ser possivelmente outliers. estabelecemos aqui 0,05%
+  # da quantidade de transacoes analisadas
+  quantidade_minina_count <- qtd_transacoes_unicas_mes * 0.0005
+  
   # filtra apenas as que tiveram lift maior que dois e ordena
   todas_regras_dataframe <-
-    todas_regras_dataframe %>% filter(lift >= 2) %>%
+    todas_regras_dataframe %>% filter(lift >= 2 &
+                                        count >= quantidade_minina_count) %>%
     arrange(desc(lift))
   
   # salva regras em um CSV
