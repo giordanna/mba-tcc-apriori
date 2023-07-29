@@ -527,22 +527,30 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # junta todas as regras
   for (regra in todas_regras) {
-    todas_regras_dataframe <- todas_regras_dataframe %>%
-      bind_rows(
-        data.frame(
-          sexo = regra$Sexo,
-          faixa_etaria =  regra$Faixa_Etaria_Idade,
-          lhs = labels(lhs(regra$Regras)),
-          rhs = labels(rhs(regra$Regras)),
-          regra$Regras@quality
+    try({
+      todas_regras_dataframe <- todas_regras_dataframe %>%
+        bind_rows(
+          data.frame(
+            sexo = regra$Sexo,
+            faixa_etaria =  regra$Faixa_Etaria_Idade,
+            lhs = labels(lhs(regra$Regras)),
+            rhs = labels(rhs(regra$Regras)),
+            regra$Regras@quality
+          )
         )
-      )
+    })
   }
   
   # ve quantidade minima de contagem para filtrar regras que
   # podem ser possivelmente outliers. estabelecemos aqui 0,05%
   # da quantidade de transacoes analisadas
   quantidade_minina_count <- qtd_transacoes_unicas_mes * 0.0005
+  
+  # se o valor for muito baixo, vou assumir que precisa ter acontecido pelo
+  # menos 5 vezes
+  if (quantidade_minina_count < 5) {
+    quantidade_minina_count <- 5
+  }
   
   # filtra apenas as que tiveram lift maior que dois e ordena
   todas_regras_dataframe <-

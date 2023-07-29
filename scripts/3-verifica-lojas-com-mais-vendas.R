@@ -110,18 +110,41 @@ transacoes_agrupadas <-
   filter(total_transacoes >= 20000) %>%
   arrange(desc(total_transacoes))
 
+# agrupa cnpjs, conta a quantidade unica de transações, e ve as transacoes
+# de farmacias com mais 1000 transacoes e de menos de 20000 transacoes
+transacoes_agrupadas_menos_transacoes <-
+  transacoes_parquet %>% select(Rede, CNPJ, id_transacao) %>%
+  group_by(CNPJ, Rede) %>%
+  summarise(total_transacoes = n_distinct(id_transacao)) %>%
+  filter(1000 < total_transacoes & total_transacoes < 20000) %>%
+  arrange(total_transacoes)
+
 # verifica o agrupamento
 glimpse(transacoes_agrupadas)
+
+# verifica o agrupamento de lojas com menos transacoes
+glimpse(transacoes_agrupadas_menos_transacoes)
+
 
 # conta a quantidade de linhas do agrupamento
 sdf_nrow(transacoes_agrupadas)
 # [1] 156
+
+# conta a quantidade de linhas do agrupamento com menos transacoes
+sdf_nrow(transacoes_agrupadas_menos_transacoes)
+# [1] 2893
 
 # transfere para um dataframe no R
 system.time(transacoes_loja_contagem_R <-
               collect(transacoes_agrupadas))
 # usuário   sistema decorrido 
 # 0.998     0.127    50.651
+
+# transfere para um dataframe no R
+system.time(transacoes_loja_contagem_R_menos_transacoes <-
+              collect(transacoes_agrupadas_menos_transacoes))
+# usuário   sistema decorrido 
+# 1.493     0.161    63.127 
 
 # cria diretorio de resultados
 dir.create(file.path("./resultados"))
@@ -133,6 +156,18 @@ write.csv(
     "./resultados/",
     nome_arquivo_transacoes,
     "_por_loja.csv",
+    sep = ""
+  ),
+  row.names = TRUE
+)
+
+# cria arquivo CSV com o resultado com menos transacoes
+write.csv(
+  transacoes_loja_contagem_R_menos_transacoes,
+  paste(
+    "./resultados/",
+    nome_arquivo_transacoes,
+    "_por_loja_menos_transacoes.csv",
     sep = ""
   ),
   row.names = TRUE
