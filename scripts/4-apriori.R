@@ -5,16 +5,17 @@
 readRenviron(".Renviron")
 
 # escolhe a rede e o cnpj a partir das variaveis de ambiente
-rede <- Sys.getenv("REDE")
-cnpj <- Sys.getenv("CNPJ")
 nome_arquivo_transacoes <-
   Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
+ano <- Sys.getenv("ANO", unset = 2023)
+rede <- Sys.getenv("REDE")
+cnpj <- Sys.getenv("CNPJ")
 
 # escolhe a coluna que sera usada para classificar o produto das transacoes
 coluna_classificacao <-
-  Sys.getenv("COLUNA_CLASSIFICACAO", unset = "NEC_2")
+  Sys.getenv("COLUNA_CLASSIFICACAO", unset = "NEC_1")
 filtroProdutoOTC <-
-  Sys.getenv("FILTRO_PRODUTO_OTC", unset = "98A - NOT OTC")
+  Sys.getenv("FILTRO_PRODUTO_OTC", unset = "98 - NOT OTC")
 
 # define valores do apriori
 support <- Sys.getenv("APRIORI_SUPPORT", unset =  "0.001")
@@ -105,7 +106,7 @@ glimpse(produtos_parquet)
 # aqui como a coluna vai ser dinamico entao o filtro para filtrar produtos Rx
 # deve ser dinamico tbm
 produtos_parquet_filtrados <-
-  produtos_parquet %>% select(EAN,!!as.name(coluna_classificacao)) %>%
+  produtos_parquet %>% select(EAN, !!as.name(coluna_classificacao)) %>%
   filter(!!as.name(coluna_classificacao) != filtroProdutoOTC)
 
 # inner join
@@ -153,7 +154,7 @@ segmentos_mes <-
 
 # cria array de segmentos de meses para iterar
 for (i in 1:nrow(tipos_meses)) {
-  segmentos_mes[nrow(segmentos_mes) + 1, ] <-
+  segmentos_mes[nrow(segmentos_mes) + 1,] <-
     c(tipos_meses[i, 1])
 }
 
@@ -167,17 +168,23 @@ for (i in 1:nrow(segmentos_mes)) {
   transacoes_mes = transacoes_R
   
   # cria diretorio de resultados por cnpj
-  diretorio_resultados = paste("./resultados/Coluna=",
-                               coluna_classificacao ,
-                               ";CNPJ=",
-                               cnpj,
-                               "/",
-                               sep = "")
+  diretorio_resultados = paste(
+    "./resultados/Ano=",
+    ano,
+    ";Coluna=",
+    coluna_classificacao,
+    ";CNPJ=",
+    cnpj,
+    "/",
+    sep = ""
+  )
   
   # se mes for diferente de NA, cria diretorio de mês
   if (!is.na(segmentos_mes[i, 1])) {
     diretorio_resultados = paste(
-      "./resultados/Coluna=",
+      "./resultados/Ano=",
+      ano,
+      ";Coluna=",
       coluna_classificacao ,
       ";Mes=",
       segmentos_mes[i, 1],
@@ -245,7 +252,8 @@ for (i in 1:nrow(segmentos_mes)) {
       )),
       size = 8,
       hjust = if_else(
-        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+        tipos_faixa_etaria$porcentagem_double <= limite_posicao_porcentagem,
+        -0.1,
         1.1
       )
     ) +
@@ -287,7 +295,8 @@ for (i in 1:nrow(segmentos_mes)) {
       )),
       size = 12,
       hjust = if_else(
-        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+        tipos_sexo$porcentagem_double <= limite_posicao_porcentagem,
+        -0.1,
         1.1
       )
     ) +
@@ -322,16 +331,16 @@ for (i in 1:nrow(segmentos_mes)) {
   
   # itera pelas faixas etarias
   for (j in 1:nrow(tipos_faixa_etaria)) {
-    publicos_alvo[nrow(publicos_alvo) + 1, ] <-
+    publicos_alvo[nrow(publicos_alvo) + 1,] <-
       c(NA, tipos_faixa_etaria[j, 1])
   }
   
   # itera pelos sexos
   for (j in 1:nrow(tipos_sexo)) {
-    publicos_alvo[nrow(publicos_alvo) + 1, ] <- c(tipos_sexo[j, 1], NA)
+    publicos_alvo[nrow(publicos_alvo) + 1,] <- c(tipos_sexo[j, 1], NA)
     
     for (k in 1:nrow(tipos_faixa_etaria)) {
-      publicos_alvo[nrow(publicos_alvo) + 1, ] <-
+      publicos_alvo[nrow(publicos_alvo) + 1,] <-
         c(tipos_sexo[j, 1], tipos_faixa_etaria[k, 1])
     }
   }
@@ -452,7 +461,7 @@ for (i in 1:nrow(segmentos_mes)) {
       
       plot_itens_frequentes <- itens_mais_frequentes %>%
         ggplot(aes(
-          x = reorder(!!as.name(coluna_classificacao),-total_transacoes),
+          x = reorder(!!as.name(coluna_classificacao), -total_transacoes),
           y = total_transacoes
         )) +
         geom_bar(stat = "identity", aes(fill = total_transacoes)) +
@@ -473,7 +482,8 @@ for (i in 1:nrow(segmentos_mes)) {
           )),
           size = 8,
           hjust = if_else(
-            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,-0.1,
+            itens_mais_frequentes$porcentagem_double <= limite_posicao_porcentagem,
+            -0.1,
             1.1
           )
         ) +
