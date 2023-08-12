@@ -13,6 +13,10 @@ O projeto cria os arquivos parquet a partir do CSV das transações de compra, s
 3. Em `datasets` é necessário ter o arquivo `transacoes.csv` e `produtos.csv` para gerar os arquivos Parquet. Veja os arquivos de exemplo;
 4. É preciso ter um arquivo de variável de ambiente com o nome `.REnviron`. Veja o arquivo de exemplo.
 
+## Observação
+
+Por questões de proteção de dados, a base original utilizada no TCC não está disponível neste projeto, apenas os códigos.
+
 ## Como usar
 
 1. Abra o arquivo `mba-tcc-apriori.Rproj`;
