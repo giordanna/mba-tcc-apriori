@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/653381182.svg)](https://zenodo.org/badge/latestdoi/653381182)
+
 # TCC MBA - Data Science & Analytics
 
 Projeto feito em R, implementa o algoritmo apriori em uma extração de transação de compras.
