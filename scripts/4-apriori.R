@@ -97,11 +97,13 @@ transacoes_parquet_filtradas <-
                                                      "_",
                                                      Cpf,
                                                      sep = "")) %>%
-  filter(CNPJ == cnpj,  Faixa_Etaria_Idade != "NÃƒO DEFINIDA") %>%
+  filter(
+    CNPJ == cnpj,
+    Faixa_Etaria_Idade != "NÃƒO DEFINIDA" &
+      Faixa_Etaria_Idade != "NÃO DEFINIDA",
+    Sexo == 'F' | Sexo == 'M'
+  ) %>%
   select(Ano, Mes, Sexo, Faixa_Etaria_Idade, EAN, id_transacao)
-
-
-glimpse(produtos_parquet)
 
 # aqui como a coluna vai ser dinamico entao o filtro para filtrar produtos Rx
 # deve ser dinamico tbm
@@ -214,7 +216,7 @@ for (i in 1:nrow(segmentos_mes)) {
     group_by(Faixa_Etaria_Idade) %>%
     summarise(
       total_transacoes = n_distinct(id_transacao),
-      porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas,
+      porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas_mes,
       porcentagem = percent(n_distinct(id_transacao) / qtd_transacoes_unicas_mes)
     ) %>%
     arrange(desc(total_transacoes))
@@ -225,7 +227,7 @@ for (i in 1:nrow(segmentos_mes)) {
     group_by(Sexo) %>%
     summarise(
       total_transacoes = n_distinct(id_transacao),
-      porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas,
+      porcentagem_double = 100 * n_distinct(id_transacao) / qtd_transacoes_unicas_mes,
       porcentagem =  percent(n_distinct(id_transacao) / qtd_transacoes_unicas_mes)
     ) %>%
     arrange(desc(total_transacoes))
@@ -398,43 +400,86 @@ for (i in 1:nrow(segmentos_mes)) {
       # fecha tabela temporaria
       close(tmp)
       
+      ##########################################################################
+      # APRIORI
+      ##########################################################################
       # roda o apriori
-      rules <-
-        apriori(
-          transacoes,
-          parameter = list(
-            support = support,
-            confidence = confidence,
-            minlen = minlen,
-            maxlen = maxlen
-          )
-        )
+      system.time(rules_apriori <-
+                    apriori(
+                      transacoes,
+                      parameter = list(
+                        support = support,
+                        confidence = confidence,
+                        minlen = minlen,
+                        maxlen = maxlen
+                      )
+                    ))
       
       # ordena pelo lift
-      rules <-
-        sort(rules,
-             decreasing = TRUE,
-             na.last = NA,
-             by = "lift")
-      
-      # salva resultado na lista
-      todas_regras[[j]] <- list(
-        Transacoes = transacoes,
-        Sexo = sexo_atual,
-        Faixa_Etaria_Idade = faixa_etaria_atual,
-        Regras = rules
-      )
+      rules_apriori <-
+        sort(
+          rules_apriori,
+          decreasing = TRUE,
+          na.last = NA,
+          by = "lift"
+        )
       
       # escreve resultado em csv
       write(
-        rules,
+        rules_apriori,
         file = paste(
           diretorio_resultados,
           "csvs/Sexo=",
           sexo_atual,
           "_Faixa_Etaria_Idade=",
           faixa_etaria_atual ,
-          ".csv",
+          "_Apriori.csv",
+          sep = ""
+        ),
+        sep = ";",
+        quote = TRUE,
+        row.names = TRUE
+      )
+      
+      ##########################################################################
+      # ECLAT
+      ##########################################################################
+      
+      # vamos comparar com o eclat
+      # ref: https://search.r-project.org/CRAN/refmans/arules/html/eclat.html
+      system.time(sets_eclat <-
+                    eclat(
+                      transacoes,
+                      parameter = list(
+                        supp = support,
+                        minlen = minlen,
+                        maxlen = maxlen
+                      )
+                    ))
+      
+      
+      # nós temos agora os conjuntos de itens mais frequentes. lembrando:
+      # isto não são regras!!
+      
+      # salva resultado na lista
+      todas_regras[[j]] <- list(
+        Transacoes = transacoes,
+        Sexo = sexo_atual,
+        Faixa_Etaria_Idade = faixa_etaria_atual,
+        Regras_Apriori = rules_apriori,
+        Sets_Eclat = sets_eclat
+      )
+      
+      # escreve resultado em csv
+      write(
+        sets_eclat,
+        file = paste(
+          diretorio_resultados,
+          "csvs/Sexo=",
+          sexo_atual,
+          "_Faixa_Etaria_Idade=",
+          faixa_etaria_atual ,
+          "_Eclat.csv",
           sep = ""
         ),
         sep = ";",
@@ -522,8 +567,24 @@ for (i in 1:nrow(segmentos_mes)) {
     })
   }
   
+  ##########################################################################
+  # JUNTA TODAS AS REGRAS - APRIORI
+  ##########################################################################
+  
+  
+  # ve quantidade minima de contagem para filtrar regras que
+  # podem ser possivelmente outliers. estabelecemos aqui 0,05%
+  # da quantidade de transacoes analisadas
+  quantidade_minina_count <- qtd_transacoes_unicas_mes * 0.0005
+  
+  # se o valor for muito baixo, vou assumir que precisa ter acontecido pelo
+  # menos 5 vezes
+  if (quantidade_minina_count < 5) {
+    quantidade_minina_count <- 5
+  }
+  
   # percorre todas as regras e gera um data frame contendo todas as regras
-  todas_regras_dataframe <- data.frame(
+  todas_regras_dataframe_apriori <- data.frame(
     sexo = character(0),
     faixa_etaria = character(0),
     lhs = character(0),
@@ -538,39 +599,28 @@ for (i in 1:nrow(segmentos_mes)) {
   # junta todas as regras
   for (regra in todas_regras) {
     try({
-      todas_regras_dataframe <- todas_regras_dataframe %>%
+      todas_regras_dataframe_apriori <- todas_regras_dataframe_apriori %>%
         bind_rows(
           data.frame(
             sexo = regra$Sexo,
             faixa_etaria =  regra$Faixa_Etaria_Idade,
-            lhs = labels(lhs(regra$Regras)),
-            rhs = labels(rhs(regra$Regras)),
-            regra$Regras@quality
+            lhs = labels(lhs(regra$Regras_Apriori)),
+            rhs = labels(rhs(regra$Regras_Apriori)),
+            regra$Regras_Apriori@quality
           )
         )
     })
   }
   
-  # ve quantidade minima de contagem para filtrar regras que
-  # podem ser possivelmente outliers. estabelecemos aqui 0,05%
-  # da quantidade de transacoes analisadas
-  quantidade_minina_count <- qtd_transacoes_unicas_mes * 0.0005
-  
-  # se o valor for muito baixo, vou assumir que precisa ter acontecido pelo
-  # menos 5 vezes
-  if (quantidade_minina_count < 5) {
-    quantidade_minina_count <- 5
-  }
-  
   # filtra apenas as que tiveram lift maior que dois e ordena
-  todas_regras_dataframe <-
-    todas_regras_dataframe %>% filter(lift >= 2 &
-                                        count >= quantidade_minina_count) %>%
+  todas_regras_dataframe_apriori <-
+    todas_regras_dataframe_apriori %>% filter(lift >= 2 &
+                                                count >= quantidade_minina_count) %>%
     arrange(desc(lift))
   
   # salva regras em um CSV
   write.csv(
-    todas_regras_dataframe,
+    todas_regras_dataframe_apriori,
     paste(
       diretorio_resultados,
       "csvs/Todas_Regras_Consideraveis.csv",
@@ -580,4 +630,51 @@ for (i in 1:nrow(segmentos_mes)) {
     quote = TRUE,
     row.names = TRUE
   )
+  
+  ##########################################################################
+  # JUNTA TODAS AS REGRAS - ECLAT
+  ##########################################################################
+  
+  # percorre todas as regras e gera um data frame contendo todas as regras
+  todos_sets_dataframe_eclat <- data.frame(
+    sexo = character(0),
+    faixa_etaria = character(0),
+    items = character(0),
+    support = numeric(0),
+    count = numeric(0)
+  )
+  
+  # junta todas as regras
+  for (regra in todas_regras) {
+    try({
+      todos_sets_dataframe_eclat <- todos_sets_dataframe_eclat %>%
+        bind_rows(
+          data.frame(
+            sexo = regra$Sexo,
+            faixa_etaria =  regra$Faixa_Etaria_Idade,
+            items = labels(items(regra$Sets_Eclat)),
+            regra$Sets_Eclat@quality
+          )
+        )
+    })
+  }
+  
+  # ordena
+  todos_sets_dataframe_eclat <-
+    todos_sets_dataframe_eclat %>% filter(count >= quantidade_minina_count) %>%
+    arrange(desc(support))
+  
+  # salva regras em um CSV
+  write.csv(
+    todos_sets_dataframe_eclat,
+    paste(
+      diretorio_resultados,
+      "csvs/Todos_Sets_Consideraveis_Eclat.csv",
+      sep = ""
+    ),
+    sep = ";",
+    quote = TRUE,
+    row.names = TRUE
+  )
 }
+
