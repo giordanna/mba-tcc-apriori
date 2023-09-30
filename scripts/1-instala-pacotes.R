@@ -4,6 +4,8 @@
 
 # opcional: caso esteja usando linux, para baixar pacotes pre-compilados
 if (Sys.info()["sysname"] == "Linux") {
+  # a versao mais atual no momento da distro ubuntu eh a jammy 22.04,
+  # pra outras versoes do linux deve ter outros diretorios
   options(repos = c(PkgMgr = "https://packagemanager.rstudio.com/all/__linux__/jammy/latest"))
 }
 
@@ -24,7 +26,8 @@ pacotes <- c(
   "viridis",
   "shadowtext",
   "httpuv",
-  "formattable"
+  "formattable",
+  "extrafont"
 )
 
 # instalar e carregar os pacotes

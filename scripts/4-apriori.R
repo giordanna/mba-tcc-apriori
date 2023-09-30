@@ -4,6 +4,9 @@
 
 readRenviron(".Renviron")
 
+# carrega fontes (pra poder setar fonte arial nos graficos)
+loadfonts()
+
 # escolhe a rede e o cnpj a partir das variaveis de ambiente
 nome_arquivo_transacoes <-
   Sys.getenv("NOME_ARQUIVO_TRANSACOES", unset = "transacoes")
@@ -90,12 +93,14 @@ system.time(
 graphics.off()
 
 # seleciona apenas o que vai ser usado
-# combina duas colunas: ID_Transacao_Rede e Cpf, para gerar um ID unico que
+# combina duas colunas: ID_Transacao_Rede + Cpf + CNPJ, para gerar um ID unico que
 # identifica a transacao por cliente em uma nova coluna: id_transacao
 transacoes_parquet_filtradas <-
   transacoes_parquet %>% mutate(id_transacao = paste(ID_Transacao_Rede,
                                                      "_",
                                                      Cpf,
+                                                     "_",
+                                                     CNPJ,
                                                      sep = "")) %>%
   filter(
     CNPJ == cnpj,
@@ -261,9 +266,13 @@ for (i in 1:nrow(segmentos_mes)) {
     ) +
     coord_flip() +
     theme(
-      text = element_text(size = 24),
+      text = element_text(size = 24, family="Arial"),
       legend.position = "none",
-      plot.margin = unit(c(1, 1, 1, 1), "cm")
+      plot.margin = unit(c(1, 1, 1, 1), "cm"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")
     )
   png(
     file = paste(diretorio_resultados,
@@ -304,9 +313,13 @@ for (i in 1:nrow(segmentos_mes)) {
     ) +
     coord_flip() +
     theme(
-      text = element_text(size = 32),
+      text = element_text(size = 32, family="Arial"),
       legend.position = "none",
-      plot.margin = unit(c(1, 1, 1, 1), "cm")
+      plot.margin = unit(c(1, 1, 1, 1), "cm"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black")
     )
   png(
     file = paste(diretorio_resultados,
@@ -317,6 +330,8 @@ for (i in 1:nrow(segmentos_mes)) {
   )
   print(plot_tipos_sexo)
   dev.off()
+  
+
   
   ##############################################################################
   # CRIA LISTA DE SEGMENTOS DE PUBLICO ALVO E SEXO
@@ -442,52 +457,6 @@ for (i in 1:nrow(segmentos_mes)) {
       )
       
       ##########################################################################
-      # ECLAT
-      ##########################################################################
-      
-      # vamos comparar com o eclat
-      # ref: https://search.r-project.org/CRAN/refmans/arules/html/eclat.html
-      system.time(sets_eclat <-
-                    eclat(
-                      transacoes,
-                      parameter = list(
-                        supp = support,
-                        minlen = minlen,
-                        maxlen = maxlen
-                      )
-                    ))
-      
-      
-      # nós temos agora os conjuntos de itens mais frequentes. lembrando:
-      # isto não são regras!!
-      
-      # salva resultado na lista
-      todas_regras[[j]] <- list(
-        Transacoes = transacoes,
-        Sexo = sexo_atual,
-        Faixa_Etaria_Idade = faixa_etaria_atual,
-        Regras_Apriori = rules_apriori,
-        Sets_Eclat = sets_eclat
-      )
-      
-      # escreve resultado em csv
-      write(
-        sets_eclat,
-        file = paste(
-          diretorio_resultados,
-          "csvs/Sexo=",
-          sexo_atual,
-          "_Faixa_Etaria_Idade=",
-          faixa_etaria_atual ,
-          "_Eclat.csv",
-          sep = ""
-        ),
-        sep = ";",
-        quote = TRUE,
-        row.names = TRUE
-      )
-      
-      ##########################################################################
       # GRAFICO PLOT ITENS MAIS FREQUENTES
       ##########################################################################
       
@@ -534,18 +503,13 @@ for (i in 1:nrow(segmentos_mes)) {
         ) +
         coord_flip() +
         theme(
-          text = element_text(size = 24),
+          text = element_text(size = 24, family="Arial"),
           legend.position = "none",
-          plot.margin = unit(c(1, 1, 1, 1), "cm")
-        ) +
-        ggtitle(
-          paste(
-            "Segmento: sexo=",
-            sexo_atual,
-            " e faixa etária=",
-            faixa_etaria_atual,
-            sep = ""
-          )
+          plot.margin = unit(c(1, 1, 1, 1), "cm"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          axis.line = element_line(colour = "black")
         )
       
       png(
@@ -624,52 +588,6 @@ for (i in 1:nrow(segmentos_mes)) {
     paste(
       diretorio_resultados,
       "csvs/Todas_Regras_Consideraveis.csv",
-      sep = ""
-    ),
-    sep = ";",
-    quote = TRUE,
-    row.names = TRUE
-  )
-  
-  ##########################################################################
-  # JUNTA TODAS AS REGRAS - ECLAT
-  ##########################################################################
-  
-  # percorre todas as regras e gera um data frame contendo todas as regras
-  todos_sets_dataframe_eclat <- data.frame(
-    sexo = character(0),
-    faixa_etaria = character(0),
-    items = character(0),
-    support = numeric(0),
-    count = numeric(0)
-  )
-  
-  # junta todas as regras
-  for (regra in todas_regras) {
-    try({
-      todos_sets_dataframe_eclat <- todos_sets_dataframe_eclat %>%
-        bind_rows(
-          data.frame(
-            sexo = regra$Sexo,
-            faixa_etaria =  regra$Faixa_Etaria_Idade,
-            items = labels(items(regra$Sets_Eclat)),
-            regra$Sets_Eclat@quality
-          )
-        )
-    })
-  }
-  
-  # ordena
-  todos_sets_dataframe_eclat <-
-    todos_sets_dataframe_eclat %>% filter(count >= quantidade_minina_count) %>%
-    arrange(desc(support))
-  
-  # salva regras em um CSV
-  write.csv(
-    todos_sets_dataframe_eclat,
-    paste(
-      diretorio_resultados,
-      "csvs/Todos_Sets_Consideraveis_Eclat.csv",
       sep = ""
     ),
     sep = ";",

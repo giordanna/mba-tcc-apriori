@@ -68,11 +68,13 @@ transacoes_parquet %>%
 sapply(transacoes_parquet, function(x)
   sum(is.na(x)))
 
-# cria coluna nova: ID_Transacao_Rede + Cpf = id_transacao
+# cria coluna nova: ID_Transacao_Rede + Cpf + CNPJ = id_transacao
 transacoes_parquet <-
   transacoes_parquet %>% mutate(id_transacao = paste(ID_Transacao_Rede,
                                                      "_",
                                                      Cpf,
+                                                     "_",
+                                                     CNPJ,
                                                      sep = ""))
 
 # quantas transacoes, redes, lojas, eans, e cpfs existem
