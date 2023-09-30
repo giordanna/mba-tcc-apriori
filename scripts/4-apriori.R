@@ -590,7 +590,6 @@ for (i in 1:nrow(segmentos_mes)) {
       "csvs/Todas_Regras_Consideraveis.csv",
       sep = ""
     ),
-    sep = ";",
     quote = TRUE,
     row.names = TRUE
   )
